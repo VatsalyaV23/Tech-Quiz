@@ -1307,3 +1307,158 @@ footer {
     aspect-ratio: 4/3;
   }
 }
+
+/* Submission & Warning Icon Display Fixes */
+.done-icon-wrapper {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 84px !important;
+  height: 84px !important;
+  border-radius: 50% !important;
+  background: #ecfdf5 !important;
+  border: 2.5px solid #6ee7b7 !important;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.22) !important;
+  margin: 0 auto 18px !important;
+}
+
+.done-icon-wrapper svg {
+  width: 52px !important;
+  height: 52px !important;
+  stroke: #059669 !important;
+  fill: none !important;
+  stroke-width: 2.3 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  display: block !important;
+}
+
+.warning-icon-wrapper {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 76px !important;
+  height: 76px !important;
+  border-radius: 50% !important;
+  background: #fef2f2 !important;
+  border: 2.5px solid #fca5a5 !important;
+  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.22) !important;
+  margin: 0 auto 16px !important;
+}
+
+.warning-icon-wrapper svg {
+  width: 46px !important;
+  height: 46px !important;
+  stroke: #dc2626 !important;
+  fill: none !important;
+  stroke-width: 2.3 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  display: block !important;
+}
+
+.warning-icon-wrapper svg circle {
+  fill: #dc2626 !important;
+  stroke: none !important;
+}
+
+/* Admin Candidate Review: Danger Zone & Deletion Box */
+.danger-zone-box {
+  margin-top: 24px;
+  background: #fff5f5;
+  border: 1px solid #fecdd3;
+  border-radius: 12px;
+  padding: 18px 20px;
+  transition: all 0.2s ease;
+}
+
+.danger-zone-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.btn-danger-outline {
+  background: #ffffff;
+  color: #dc2626;
+  border: 1.5px solid #f87171;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 650;
+  font-size: 13.5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-danger-outline:hover {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #dc2626;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+}
+
+.delete-confirm-box {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed #fca5a5;
+  animation: slideUp 0.2s ease;
+}
+
+.delete-keyword {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  border: 1px solid #fca5a5;
+}
+
+#deleteVerificationInput {
+  background: #ffffff;
+  border: 1.5px solid #f87171;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+#deleteVerificationInput:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
+}
+
+.btn-danger-solid {
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13.5px;
+  font-weight: 650;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-danger-solid:hover:not(:disabled) {
+  background: #b91c1c;
+  box-shadow: 0 2px 8px rgba(185, 28, 28, 0.3);
+}
+
+.btn-danger-solid:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(40%);
+}

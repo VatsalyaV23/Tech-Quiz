@@ -403,6 +403,13 @@ async function openDetailModal(id) {
     $("reviewStatusSelect").value = a.review_status || "pending";
     $("reviewNote").value = a.admin_note || "";
 
+    // Reset Danger Zone / Delete confirmation state
+    hide("deleteConfirmContainer");
+    show("openDeleteConfirmBtn");
+    $("deleteVerificationInput").value = "";
+    $("confirmDeleteBtn").disabled = true;
+    $("deleteErrorMsg").textContent = "";
+
     show("detailModal");
   } catch (err) {
     alert("Could not load attempt details: " + err.message);
@@ -465,6 +472,62 @@ $("reviewForm").addEventListener("submit", async (e) => {
     $("reviewSaveStatus").innerHTML = '<svg class="icon icon-sm icon-danger" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Failed: ' + escapeHtml(err.message);
     $("reviewSaveStatus").style.color = "var(--danger)";
   } finally {
+    btn.disabled = false;
+  }
+});
+
+// Danger Zone: Delete Candidate Attempt with "delete" keyword verification
+$("openDeleteConfirmBtn").addEventListener("click", () => {
+  hide("openDeleteConfirmBtn");
+  show("deleteConfirmContainer");
+  $("deleteVerificationInput").value = "";
+  $("confirmDeleteBtn").disabled = true;
+  $("deleteErrorMsg").textContent = "";
+  $("deleteVerificationInput").focus();
+});
+
+$("cancelDeleteBtn").addEventListener("click", () => {
+  hide("deleteConfirmContainer");
+  show("openDeleteConfirmBtn");
+  $("deleteVerificationInput").value = "";
+  $("deleteErrorMsg").textContent = "";
+});
+
+$("deleteVerificationInput").addEventListener("input", (e) => {
+  const val = e.target.value.trim().toLowerCase();
+  $("confirmDeleteBtn").disabled = (val !== "delete");
+  if (val === "delete") {
+    $("deleteErrorMsg").textContent = "";
+  }
+});
+
+$("confirmDeleteBtn").addEventListener("click", async () => {
+  if (!currentAttemptId) return;
+  const inputVal = $("deleteVerificationInput").value.trim().toLowerCase();
+  if (inputVal !== "delete") {
+    $("deleteErrorMsg").textContent = 'Please type "delete" exactly to confirm.';
+    return;
+  }
+
+  const btn = $("confirmDeleteBtn");
+  const origHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = "Deleting…";
+  $("deleteErrorMsg").textContent = "";
+
+  try {
+    await request(`/api/admin/attempts/${currentAttemptId}`, {
+      method: "DELETE"
+    });
+
+    const deletedId = currentAttemptId;
+    allAttempts = allAttempts.filter(a => a.id !== deletedId);
+    updateMetrics(allAttempts);
+    applyFilters();
+    closeModal();
+  } catch (err) {
+    $("deleteErrorMsg").textContent = "Deletion failed: " + err.message;
+    btn.innerHTML = origHtml;
     btn.disabled = false;
   }
 });

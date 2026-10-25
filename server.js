@@ -2,46 +2,336 @@ require("dotenv").config();
 const express = require("express");
 const helmet = require("helmet");
 const multer = require("multer");
-const Database = require("better-sqlite3");
+let Database;
+try {
+  Database = require("better-sqlite3");
+} catch (err) {
+  console.warn("Notice: better-sqlite3 native addon unavailable on this platform. Running in resilient storage mode.");
+}
+
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
-const DATA_DIR = path.resolve(process.env.DATA_DIR || "./data");
+const isVercel = Boolean(process.env.VERCEL || process.env.NOW_REGION);
+const DATA_DIR = path.resolve(process.env.DATA_DIR || (isVercel ? "/tmp" : "./data"));
 const VIDEO_DIR = path.join(DATA_DIR, "recordings");
 const DB_PATH = path.join(DATA_DIR, "proctor.sqlite");
 const MAX_MB = Number(process.env.MAX_RECORDING_MB || 500);
 
-// Ensure directories exist
-fs.mkdirSync(VIDEO_DIR, { recursive: true });
-
-if (!process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD.length < 8) {
-  console.warn("WARNING: Set ADMIN_PASSWORD in .env before using this system.");
+// Ensure directories exist safely (avoid EROFS on read-only serverless filesystems)
+try {
+  fs.mkdirSync(VIDEO_DIR, { recursive: true });
+} catch (err) {
+  console.warn("Notice: Could not create VIDEO_DIR (read-only filesystem):", err.message);
 }
 
-const db = new Database(DB_PATH);
-db.pragma("journal_mode = WAL");
-db.exec(`
-CREATE TABLE IF NOT EXISTS attempts (
-  id TEXT PRIMARY KEY, candidate_name TEXT NOT NULL, candidate_email TEXT NOT NULL,
-  candidate_ref TEXT, status TEXT NOT NULL DEFAULT 'started',
-  consent_at TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT,
-  violation_count INTEGER NOT NULL DEFAULT 0, review_status TEXT NOT NULL DEFAULT 'pending',
-  admin_note TEXT
-);
-CREATE TABLE IF NOT EXISTS events (
-  id INTEGER PRIMARY KEY AUTOINCREMENT, attempt_id TEXT NOT NULL,
-  event_type TEXT NOT NULL, details TEXT, occurred_at TEXT NOT NULL,
-  FOREIGN KEY(attempt_id) REFERENCES attempts(id)
-);
-CREATE TABLE IF NOT EXISTS recordings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT, attempt_id TEXT NOT NULL,
-  filename TEXT NOT NULL, bytes INTEGER NOT NULL, created_at TEXT NOT NULL,
-  FOREIGN KEY(attempt_id) REFERENCES attempts(id)
-);
-`);
+if (!process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD.length < 6) {
+  console.warn("WARNING: Set ADMIN_PASSWORD in environment variables before using this system.");
+}
+
+// Resilient fallback storage engine for serverless runtimes where native C++ SQLite binaries cannot load
+class FallbackDb {
+  constructor(filePath) {
+    this.filePath = filePath;
+    this.attempts = [];
+    this.events = [];
+    this.recordings = [];
+    this.nextEventId = 1;
+    this.nextRecordingId = 1;
+    this.load();
+  }
+
+  load() {
+    try {
+      if (this.filePath && fs.existsSync(this.filePath)) {
+        const data = JSON.parse(fs.readFileSync(this.filePath, "utf8"));
+        this.attempts = Array.isArray(data.attempts) ? data.attempts : [];
+        this.events = Array.isArray(data.events) ? data.events : [];
+        this.recordings = Array.isArray(data.recordings) ? data.recordings : [];
+        this.nextEventId = Number(data.nextEventId) || (this.events.length + 1);
+        this.nextRecordingId = Number(data.nextRecordingId) || (this.recordings.length + 1);
+      }
+    } catch {}
+  }
+
+  save() {
+    try {
+      if (this.filePath) {
+        fs.writeFileSync(this.filePath, JSON.stringify({
+          attempts: this.attempts,
+          events: this.events,
+          recordings: this.recordings,
+          nextEventId: this.nextEventId,
+          nextRecordingId: this.nextRecordingId
+        }, null, 2));
+      }
+    } catch {}
+  }
+
+  pragma() {}
+  exec() {}
+  close() { this.save(); }
+
+  prepare(sql) {
+    const s = String(sql || "").trim();
+    const self = this;
+
+    if (/INSERT INTO events/i.test(s)) {
+      return {
+        run(...args) {
+          const ev = { id: self.nextEventId++, attempt_id: args[0], event_type: args[1], details: args[2], occurred_at: args[3] };
+          self.events.push(ev);
+          self.save();
+          return { lastInsertRowid: ev.id, changes: 1 };
+        }
+      };
+    }
+
+    if (/SELECT \* FROM attempts WHERE id=\?/i.test(s)) {
+      return {
+        get(id) {
+          return self.attempts.find(a => a.id === id) || null;
+        }
+      };
+    }
+
+    if (/FROM attempts a/i.test(s)) {
+      return {
+        all() {
+          const sorted = [...self.attempts].sort((a, b) => new Date(b.started_at || 0) - new Date(a.started_at || 0));
+          return sorted.map(a => {
+            const rec = self.recordings.find(r => r.attempt_id === a.id);
+            return {
+              ...a,
+              recording_id: rec ? rec.id : null,
+              recording_bytes: rec ? rec.bytes : null,
+              recording_filename: rec ? rec.filename : null
+            };
+          });
+        }
+      };
+    }
+
+    if (/FROM events WHERE attempt_id=\?/i.test(s)) {
+      return {
+        all(attemptId) {
+          return self.events
+            .filter(e => e.attempt_id === attemptId)
+            .sort((a, b) => new Date(a.occurred_at || 0) - new Date(b.occurred_at || 0));
+        }
+      };
+    }
+
+    if (/FROM recordings WHERE attempt_id=\?/i.test(s)) {
+      return {
+        get(attemptId) {
+          const recs = self.recordings.filter(r => r.attempt_id === attemptId);
+          return recs.length ? recs[recs.length - 1] : null;
+        }
+      };
+    }
+
+    if (/UPDATE attempts SET review_status=\?, admin_note=\? WHERE id=\?/i.test(s)) {
+      return {
+        run(status, note, id) {
+          const att = self.attempts.find(a => a.id === id);
+          if (att) {
+            att.review_status = status;
+            att.admin_note = note;
+            self.save();
+          }
+          return { changes: att ? 1 : 0 };
+        }
+      };
+    }
+
+    if (/SELECT filename FROM recordings WHERE id=\?/i.test(s)) {
+      return {
+        get(recId) {
+          return self.recordings.find(r => r.id === Number(recId)) || null;
+        }
+      };
+    }
+
+    if (/SELECT id, candidate_name.*FROM attempts/i.test(s)) {
+      return {
+        all() {
+          return [...self.attempts].sort((a, b) => new Date(b.started_at || 0) - new Date(a.started_at || 0));
+        }
+      };
+    }
+
+    if (/INSERT INTO attempts/i.test(s)) {
+      return {
+        run(id, name, email, ref, consent_at, started_at) {
+          const att = {
+            id,
+            candidate_name: name,
+            candidate_email: email,
+            candidate_ref: ref,
+            status: "started",
+            consent_at,
+            started_at,
+            ended_at: null,
+            violation_count: 0,
+            review_status: "pending",
+            admin_note: ""
+          };
+          self.attempts.push(att);
+          self.save();
+          return { changes: 1 };
+        }
+      };
+    }
+
+    if (/UPDATE attempts SET violation_count=violation_count\+1 WHERE id=\?/i.test(s)) {
+      return {
+        run(id) {
+          const att = self.attempts.find(a => a.id === id);
+          if (att) {
+            att.violation_count = (att.violation_count || 0) + 1;
+            self.save();
+          }
+          return { changes: att ? 1 : 0 };
+        }
+      };
+    }
+
+    if (/SELECT id FROM recordings WHERE attempt_id=\? ORDER BY id ASC LIMIT 1/i.test(s)) {
+      return {
+        get(id) {
+          const rec = self.recordings.find(r => r.attempt_id === id);
+          return rec ? { id: rec.id } : null;
+        }
+      };
+    }
+
+    if (/UPDATE recordings SET bytes=\?, filename=\? WHERE id=\?/i.test(s)) {
+      return {
+        run(bytes, filename, id) {
+          const rec = self.recordings.find(r => r.id === id);
+          if (rec) {
+            rec.bytes = bytes;
+            rec.filename = filename;
+            self.save();
+          }
+          return { changes: rec ? 1 : 0 };
+        }
+      };
+    }
+
+    if (/INSERT INTO recordings/i.test(s)) {
+      return {
+        run(attempt_id, filename, bytes, created_at) {
+          const rec = { id: self.nextRecordingId++, attempt_id, filename, bytes, created_at };
+          self.recordings.push(rec);
+          self.save();
+          return { lastInsertRowid: rec.id, changes: 1 };
+        }
+      };
+    }
+
+    if (/UPDATE attempts SET status=?, ended_at=? WHERE id=?/i.test(s)) {
+      return {
+        run(status, ended_at, id) {
+          const att = self.attempts.find(a => a.id === id);
+          if (att) {
+            att.status = status;
+            att.ended_at = ended_at;
+            self.save();
+          }
+          return { changes: att ? 1 : 0 };
+        }
+      };
+    }
+
+    if (/SELECT filename FROM recordings WHERE attempt_id=\?/i.test(s)) {
+      return {
+        all(attemptId) {
+          return self.recordings
+            .filter(r => r.attempt_id === attemptId)
+            .map(r => ({ filename: r.filename }));
+        }
+      };
+    }
+
+    if (/DELETE FROM recordings WHERE attempt_id=\?/i.test(s)) {
+      return {
+        run(attemptId) {
+          const initial = self.recordings.length;
+          self.recordings = self.recordings.filter(r => r.attempt_id !== attemptId);
+          self.save();
+          return { changes: initial - self.recordings.length };
+        }
+      };
+    }
+
+    if (/DELETE FROM events WHERE attempt_id=\?/i.test(s)) {
+      return {
+        run(attemptId) {
+          const initial = self.events.length;
+          self.events = self.events.filter(e => e.attempt_id !== attemptId);
+          self.save();
+          return { changes: initial - self.events.length };
+        }
+      };
+    }
+
+    if (/DELETE FROM attempts WHERE id=\?/i.test(s)) {
+      return {
+        run(id) {
+          const initial = self.attempts.length;
+          self.attempts = self.attempts.filter(a => a.id !== id);
+          self.save();
+          return { changes: initial - self.attempts.length };
+        }
+      };
+    }
+
+    return {
+      run: () => ({ changes: 0 }),
+      get: () => null,
+      all: () => []
+    };
+  }
+}
+
+let db = null;
+if (Database) {
+  try {
+    db = new Database(DB_PATH);
+    db.pragma("journal_mode = WAL");
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS attempts (
+      id TEXT PRIMARY KEY, candidate_name TEXT NOT NULL, candidate_email TEXT NOT NULL,
+      candidate_ref TEXT, status TEXT NOT NULL DEFAULT 'started',
+      consent_at TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT,
+      violation_count INTEGER NOT NULL DEFAULT 0, review_status TEXT NOT NULL DEFAULT 'pending',
+      admin_note TEXT
+    );
+    CREATE TABLE IF NOT EXISTS events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, attempt_id TEXT NOT NULL,
+      event_type TEXT NOT NULL, details TEXT, occurred_at TEXT NOT NULL,
+      FOREIGN KEY(attempt_id) REFERENCES attempts(id)
+    );
+    CREATE TABLE IF NOT EXISTS recordings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, attempt_id TEXT NOT NULL,
+      filename TEXT NOT NULL, bytes INTEGER NOT NULL, created_at TEXT NOT NULL,
+      FOREIGN KEY(attempt_id) REFERENCES attempts(id)
+    );
+    `);
+  } catch (err) {
+    console.warn("Notice: SQLite initialization failed, falling back to resilient storage:", err.message);
+    db = null;
+  }
+}
+
+if (!db) {
+  db = new FallbackDb(path.join(DATA_DIR, "proctor_store.json"));
+}
 
 const insertEvent = db.prepare("INSERT INTO events(attempt_id,event_type,details,occurred_at) VALUES(?,?,?,?)");
 const getAttempt = db.prepare("SELECT * FROM attempts WHERE id=?");
@@ -218,6 +508,48 @@ app.patch("/api/admin/attempts/:id/review", adminAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// Admin delete candidate attempt, events, and recordings
+app.delete("/api/admin/attempts/:id", adminAuth, (req, res) => {
+  const attempt = getAttempt.get(req.params.id);
+  if (!attempt) return res.status(404).json({ error: "Attempt not found" });
+
+  try {
+    // Delete physical recording files if present
+    const rows = db.prepare("SELECT filename FROM recordings WHERE attempt_id=?").all(req.params.id);
+    if (Array.isArray(rows)) {
+      for (const row of rows) {
+        if (row && row.filename) {
+          const fullPath = path.join(VIDEO_DIR, row.filename);
+          try {
+            if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+          } catch (e) {
+            console.warn("Could not delete recording file:", e.message);
+          }
+        }
+      }
+    }
+
+    // Also check default attempt-named video
+    try {
+      const defaultVideo = path.join(VIDEO_DIR, `${req.params.id}.webm`);
+      if (fs.existsSync(defaultVideo)) fs.unlinkSync(defaultVideo);
+    } catch {}
+
+    // Delete database records in cascade order
+    db.prepare("DELETE FROM recordings WHERE attempt_id=?").run(req.params.id);
+    db.prepare("DELETE FROM events WHERE attempt_id=?").run(req.params.id);
+    db.prepare("DELETE FROM attempts WHERE id=?").run(req.params.id);
+
+    // Revoke any active in-memory token
+    participantTokens.delete(req.params.id);
+
+    res.json({ ok: true, message: "Attempt deleted successfully" });
+  } catch (err) {
+    console.error("Failed to delete attempt:", err);
+    res.status(500).json({ error: "Failed to delete attempt: " + err.message });
+  }
+});
+
 // Admin stream single video recording by recording ID
 app.get("/api/admin/recordings/:recordingId", adminAuth, (req, res) => {
   const row = db.prepare("SELECT filename FROM recordings WHERE id=?").get(Number(req.params.recordingId));
@@ -383,4 +715,8 @@ function gracefulShutdown() {
 process.on("SIGTERM", gracefulShutdown);
 process.on("SIGINT", gracefulShutdown);
 
-app.listen(PORT, () => console.log(`Nexus 2k26 Technical-Quiz portal running on http://localhost:${PORT}`));
+if (require.main === module && !isVercel) {
+  app.listen(PORT, () => console.log(`Nexus 2k26 Technical-Quiz portal running on http://localhost:${PORT}`));
+}
+
+module.exports = app;

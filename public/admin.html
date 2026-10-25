@@ -214,6 +214,43 @@
               </div>
             </form>
           </div>
+
+          <!-- Danger Zone: Delete Candidate Record -->
+          <div class="danger-zone-box">
+            <div class="danger-zone-header">
+              <div>
+                <h4 style="color: #991b1b; margin: 0 0 4px; display: flex; align-items: center; gap: 6px; font-size: 15px;">
+                  <svg class="icon icon-sm icon-danger" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                  Delete Candidate Record
+                </h4>
+                <p class="muted" style="margin: 0; font-size: 13px;">
+                  Permanently remove this candidate attempt, all logged proctoring events, and video recordings.
+                </p>
+              </div>
+              <button type="button" id="openDeleteConfirmBtn" class="btn-danger-outline">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                Delete Attempt
+              </button>
+            </div>
+
+            <!-- Verification Container -->
+            <div id="deleteConfirmContainer" class="delete-confirm-box hidden">
+              <p style="font-size: 13.5px; color: #991b1b; margin: 0 0 10px; font-weight: 600;">
+                To confirm permanent deletion, please type <span class="delete-keyword">delete</span> in the box below:
+              </p>
+              <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <input type="text" id="deleteVerificationInput" placeholder='Type "delete" here' autocomplete="off" style="max-width: 240px; margin: 0;">
+                <button type="button" id="confirmDeleteBtn" class="btn-danger-solid" disabled>
+                  <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                  Confirm Delete
+                </button>
+                <button type="button" id="cancelDeleteBtn" class="btn-outline btn-sm">
+                  Cancel
+                </button>
+              </div>
+              <p id="deleteErrorMsg" class="error" style="margin-top: 8px; font-size: 13px;"></p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
