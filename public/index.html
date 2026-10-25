@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Nexus 2k26 Technical-Quiz</title>
+  <link rel="icon" href="/logo.jpeg" type="image/jpeg">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <a href="/" class="brand-wrapper">
+      <img src="/logo.jpeg" alt="Nexus 2k26 Logo" class="header-logo">
+      <div class="brand-titles">
+        <div class="brand">NEXUS <span>2K26</span></div>
+        <div class="tag">Technical-Quiz Portal</div>
+      </div>
+    </a>
+    <div class="header-actions">
+      <span class="status-pill"><span class="dot green"></span> Live Portal</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Step 1: Candidate Details Form -->
+    <section id="intro" class="panel">
+      <span class="eyebrow">CANDIDATE REGISTRATION</span>
+      <h1>Nexus 2k26 Technical-Quiz</h1>
+      <p class="muted">
+        Welcome to the official examination portal. Your quiz questions and evaluation are hosted on Google Forms. 
+        This portal provides automated webcam proctoring and focus monitoring to maintain competition integrity.
+      </p>
+
+      <form id="startForm">
+        <label>
+          Full Name
+          <input name="name" required maxlength="120" placeholder="e.g. Rahul Sharma" autocomplete="name">
+        </label>
+        <label>
+          Email Address
+          <input name="email" type="email" required maxlength="200" placeholder="e.g. rahul@example.com" autocomplete="email">
+        </label>
+        <label>
+          Candidate / College Roll ID (Optional)
+          <span class="hint">Recommended for faster certificate and result processing</span>
+          <input name="candidateRef" maxlength="100" placeholder="e.g. CS2026-042">
+        </label>
+
+        <div class="notice">
+          <strong>Important Instructions &amp; Proctoring Rules:</strong>
+          <ul>
+            <li>Ensure you have a working camera and a stable internet connection.</li>
+            <li><strong>No tab switching:</strong> Navigating away from the quiz tab or minimizing the browser is strictly monitored and flagged.</li>
+            <li>Submit your answers inside the Google Form first, then confirm completion on this portal.</li>
+            <li>Your webcam recording is securely encrypted and accessible solely by verified event organizers.</li>
+          </ul>
+        </div>
+
+        <label class="consent">
+          <input name="consent" type="checkbox" required>
+          <span>I understand and consent to webcam recording and session monitoring for the duration of the Nexus 2k26 Technical-Quiz.</span>
+        </label>
+
+        <button type="submit" id="btnContinue" style="margin-top: 10px;">
+          Continue to Camera Check &rarr;
+        </button>
+        <p id="startError" class="error"></p>
+      </form>
+    </section>
+
+    <!-- Step 2: Camera Check Panel -->
+    <section id="cameraPanel" class="panel hidden">
+      <span class="eyebrow">STEP 2: CAMERA VERIFICATION</span>
+      <h1>Check Your Camera Preview</h1>
+      <p class="muted">
+        Please make sure your face is centered, well-lit, and clearly visible. Camera permission is required to proceed.
+      </p>
+
+      <div class="camera-box">
+        <div class="video-container">
+          <div class="camera-badge">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            <span id="cameraBadgeText">Initializing camera…</span>
+          </div>
+          <div class="camera-guide-overlay"></div>
+          <video id="preview" autoplay muted playsinline></video>
+        </div>
+
+        <div class="camera-instructions">
+          <span id="cameraStatus">Requesting camera access from your browser…</span>
+          <button id="retryCamera" type="button" class="btn-sm btn-outline hidden">Retry Camera Access</button>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+        <button id="startExam" disabled>Start Recording &amp; Open Quiz</button>
+      </div>
+      <p id="cameraError" class="error"></p>
+    </section>
+
+    <!-- Step 3: Exam Workspace -->
+    <section id="examPanel" class="hidden exam-layout">
+      <div class="examTop">
+        <div class="exam-candidate-info">
+          <div class="exam-candidate-name" id="candidateTitle">Candidate Session</div>
+          <div class="exam-candidate-ref" id="candidateSub">Nexus 2k26 Technical-Quiz</div>
+        </div>
+        <div class="exam-telemetry">
+          <span class="status-pill recording">
+            <span class="dot pulse-red"></span>
+            <span id="recordStatus">PROCTORING ACTIVE</span>
+          </span>
+          <span class="timer-box" id="sessionTimer"><svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> <span id="timerText">00:00</span></span>
+        </div>
+      </div>
+
+      <!-- Embedded Google Form with Seamless Theme Blend -->
+      <div class="form-card">
+        <div id="formLoading" class="form-loading-skeleton">
+          <div class="spinner"></div>
+          <p>Loading Nexus 2k26 Quiz Form…</p>
+        </div>
+        <iframe id="googleForm" title="Nexus 2k26 Technical-Quiz Form" allow="camera 'none'; microphone 'none'; geolocation 'none'" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      </div>
+
+      <!-- Persistent Floating PiP Camera Preview for Candidate Peace of Mind -->
+      <div id="floatingPip" class="floating-pip" title="Your webcam is live and recording">
+        <div class="floating-pip-badge">
+          <span class="dot pulse-red"></span> REC
+        </div>
+        <video id="pipVideo" autoplay muted playsinline></video>
+      </div>
+
+      <!-- Finish Bar -->
+      <div class="finishPanel">
+        <div class="finish-instructions">
+          <h3>Submission Checklist:</h3>
+          <p class="muted">
+            1. First click the purple/blue <strong>Submit</strong> button inside the Google Form above.<br>
+            2. After you see the Google Form confirmation message, click the button to the right to complete your proctored session.
+          </p>
+        </div>
+        <div>
+          <button id="finishExam" class="secondary">I Submitted the Quiz &amp; Finish Session</button>
+          <p id="finishStatus" class="muted" style="margin-top:6px; font-size:13px;"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 4: Finished Confirmation -->
+    <section id="donePanel" class="panel hidden" style="text-align: center; padding: 48px 24px;">
+      <div class="done-icon-wrapper">
+        <svg class="icon-hero icon-success" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+      </div>
+      <br>
+      <span class="eyebrow">SUBMISSION COMPLETE</span>
+      <h1>Thank you for participating!</h1>
+      <p class="muted" style="max-width: 580px; margin: 12px auto 24px;">
+        Your proctoring video recording and session data for <strong>Nexus 2k26 Technical-Quiz</strong> have been securely uploaded for organizer review.
+      </p>
+      <div class="notice" style="max-width: 520px; margin: auto; text-align: left;">
+        <strong>Next Steps:</strong>
+        <ul>
+          <li>Your quiz responses were submitted via Google Forms.</li>
+          <li>Organizers will review session integrity before releasing leaderboard results and certificates.</li>
+          <li>You may now safely close this browser window.</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <!-- Proctoring Warning Modal (Shown ONLY to participants upon tab switch/blur) -->
+  <div id="warningModal" class="warning-overlay hidden">
+    <div class="warning-card">
+      <div class="warning-icon-wrapper">
+        <svg class="icon-hero icon-danger" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+      </div>
+      <div class="warning-count-badge" id="warningBadge">Violation Warning #1</div>
+      <h2>PROCTORING ALERT</h2>
+      <p>
+        You navigated away from the quiz tab or switched applications. 
+        Tab switching, background apps, and minimizing the window are strictly prohibited during the <strong>Nexus 2k26 Technical-Quiz</strong>.
+      </p>
+      <div class="warning-alert-box">
+        <strong>Notice:</strong> This incident has been logged with an exact timestamp and sent to the event organizers. Repeated violations may result in session disqualification.
+      </div>
+      <button id="dismissWarningBtn" style="width: 100%;">I Understand &amp; Return to Quiz</button>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-text">
+      Nexus 2k26 Technical-Quiz • Monitored Academic Competition Portal • All Rights Reserved
+    </div>
+    <a href="/admin.html" class="footer-admin-link">Admin</a>
+  </footer>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>
